@@ -66,7 +66,6 @@ async function deriveKeys(password, username) {
     });
     
     // Convert to hex string
-    const hex = result.encoded; // The raw hash is in result.hash (Uint8Array)
     const rawHash = result.hash;
     
     // Split: 32 bytes for auth, 32 bytes for encryption
@@ -158,10 +157,10 @@ async function decryptPayload(ciphertextB64, ivB64) {
 async function fetchApi(endpoint, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (jwtToken) {
-    headers['Authorization'] = Bearer \;
+    headers['Authorization'] = `Bearer ${jwtToken}`;
   }
   options.headers = { ...headers, ...options.headers };
-  return fetch(http://localhost:8000/api\, options);
+  return fetch(`http://localhost:8000/api${endpoint}`, options);
 }
 
 // --- Auth Flows ---
@@ -246,7 +245,6 @@ async function showMfaSetup() {
   const res = await fetchApi('/auth/mfa/setup', { method: 'POST' });
   const data = await res.json();
   
-  // Render QR Code using the library
   QRCode.toCanvas(mfaQrCode, data.uri, function (error) {
     if (error) console.error(error)
   });
@@ -357,7 +355,7 @@ loadPasswordsBtn.addEventListener('click', async () => {
     if (dec.error) {
       li.innerText = dec.error;
     } else {
-      li.innerHTML = <strong>\</strong><br>Usuário: \<br>Senha: \<br>\;
+      li.innerHTML = `<strong>${dec.title}</strong><br>Usuário: ${dec.user}<br>Senha: ${dec.pass}<br>${dec.url}`;
     }
     passwordsList.appendChild(li);
   }
