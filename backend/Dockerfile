@@ -9,6 +9,6 @@ COPY ./app /code/app
 
 # Run as non-root user for better security
 RUN useradd -m vaultuser
-USER vaultuser
+# USER vaultuser
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
