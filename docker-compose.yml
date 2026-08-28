@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  cert-generator:
+    image: alpine/openssl
+    command: >
+      req -x509 -nodes -days 365 -newkey rsa:2048
+      -keyout /certs/nginx-selfsigned.key
+      -out /certs/nginx-selfsigned.crt
+      -subj "/C=BR/ST=State/L=City/O=PyVault/OU=Security/CN=localhost"
+    volumes:
+      - certs:/certs
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    volumes:
+      - ./backend/app:/code/app
+      - backend_data:/code
+    # Do not map ports to the host here to ensure isolation!
+    # API should only be accessible through Nginx.
+    expose:
+      - "8000"
+    networks:
+      - internal
+    depends_on:
+      cert-generator:
+        condition: service_completed_successfully
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "443:443"
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - certs:/etc/nginx/certs:ro
+    depends_on:
+      backend:
+        condition: service_started
+      cert-generator:
+        condition: service_completed_successfully
+    networks:
+      - internal
+      
+volumes:
+  backend_data:
+  certs:
+
+networks:
+  internal:
+    driver: bridge

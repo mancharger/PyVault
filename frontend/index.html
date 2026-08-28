@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PyVault - Zero Knowledge Storage</title>
+    <link rel="stylesheet" href="./style.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <div class="logo">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          <h1>PyVault</h1>
+        </div>
+        <div class="status-indicator">
+          <span class="dot"></span>
+          <span class="status-text">Client-Side Encryption Active</span>
+        </div>
+      </header>
+
+      <main>
+        <div class="auth-section" id="authSection">
+          <h2>Master Password</h2>
+          <p>Your password never leaves this device. It is used to locally derive your encryption key via Argon2.</p>
+          <div class="input-group">
+            <input type="password" id="masterPassword" placeholder="Enter your master password..." />
+            <button id="unlockBtn">Unlock Vault</button>
+          </div>
+          <div id="cryptoLoader" class="loader hidden">
+            <div class="spinner"></div>
+            <span>Deriving cryptographic key...</span>
+          </div>
+        </div>
+
+        <div class="vault-section hidden" id="vaultSection">
+          <div class="vault-grid">
+            <div class="card">
+              <h3>Secure Note</h3>
+              <textarea id="noteContent" placeholder="Write your highly sensitive note here..."></textarea>
+              <button id="saveNoteBtn">Encrypt & Save</button>
+              <div id="saveLoader" class="loader hidden">
+                <div class="spinner"></div>
+                <span>Encrypting AES-256-GCM...</span>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Stored Notes</h3>
+              <button id="loadNotesBtn" class="secondary-btn">Fetch & Decrypt Notes</button>
+              <ul id="notesList" class="notes-list">
+                <!-- Decrypted notes will appear here -->
+              </ul>
+            </div>
+          </div>
+        </div>
+      </main>
+      
+      <footer>
+        <p>PyVault MVP - Forensic Audit Trail & Zero-Knowledge Architecture</p>
+      </footer>
+    </div>
+    
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>
