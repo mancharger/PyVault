@@ -17,49 +17,113 @@
         </div>
         <div class="status-indicator">
           <span class="dot"></span>
-          <span class="status-text">Criptografia no Cliente Ativa</span>
+          <span class="status-text" id="headerStatus">Desconectado</span>
+          <button id="logoutBtn" class="hidden secondary-btn" style="margin-left:1rem; padding: 0.3rem 0.6rem;">Sair</button>
         </div>
       </header>
 
       <main>
+        <!-- AUTH SECTION -->
         <div class="auth-section" id="authSection">
-          <h2>Senha Mestra</h2>
-          <p>Sua senha nunca sai deste dispositivo. Ela é usada para derivar localmente sua chave de criptografia via Argon2.</p>
+          <h2>Bem-vindo ao PyVault</h2>
+          <p>Sua Senha Mestra nunca é enviada ao servidor. Ela deriva uma chave de acesso e uma chave de criptografia AES-256-GCM.</p>
           <div class="input-group">
-            <input type="password" id="masterPassword" placeholder="Digite sua senha mestra..." />
-            <button id="unlockBtn">Desbloquear Cofre</button>
+            <input type="text" id="usernameInput" placeholder="Usuário" />
+            <input type="password" id="masterPasswordInput" placeholder="Sua Senha Mestra (Forte)" />
+            <div style="display:flex; gap:10px; margin-top:10px;">
+              <button id="loginBtn">Entrar</button>
+              <button id="registerBtn" class="secondary-btn">Criar Conta</button>
+            </div>
           </div>
-          <div id="cryptoLoader" class="loader hidden">
+          
+          <!-- MFA Prompt -->
+          <div id="mfaPromptSection" class="hidden" style="margin-top: 15px;">
+            <h3>Verificação em Duas Etapas (MFA)</h3>
+            <input type="text" id="mfaCodeInput" placeholder="Código de 6 dígitos" maxlength="6" />
+            <button id="mfaVerifyBtn">Verificar</button>
+          </div>
+
+          <div id="authLoader" class="loader hidden">
             <div class="spinner"></div>
-            <span>Derivando chave criptográfica...</span>
+            <span>Autenticando...</span>
           </div>
         </div>
 
+        <!-- MFA SETUP SECTION -->
+        <div class="vault-section hidden" id="mfaSetupSection">
+          <h2>Configurar MFA</h2>
+          <p>Escaneie o QR Code abaixo com seu Autenticador (Google, Authy):</p>
+          <canvas id="mfaQrCode" style="margin: 20px auto; display: block; background: white; padding: 10px; border-radius: 8px;"></canvas>
+          <div class="input-group">
+            <input type="text" id="mfaSetupCodeInput" placeholder="Código de 6 dígitos" maxlength="6" />
+            <button id="mfaSetupConfirmBtn">Confirmar Ativação</button>
+          </div>
+        </div>
+
+        <!-- VAULT DASHBOARD SECTION -->
         <div class="vault-section hidden" id="vaultSection">
-          <div class="vault-grid">
-            <div class="card">
-              <h3>Nota Segura</h3>
-              <textarea id="noteContent" placeholder="Escreva sua nota altamente sensível aqui..."></textarea>
-              <button id="saveNoteBtn">Criptografar e Salvar</button>
-              <div id="saveLoader" class="loader hidden">
-                <div class="spinner"></div>
-                <span>Criptografando AES-256-GCM...</span>
+          <h2>Seu Espaço Seguro</h2>
+          <p>Nenhum dos seus dados pode ser lido pelo servidor.</p>
+          
+          <div class="tabs">
+            <button class="tab-btn active" data-tab="notes">Notas Seguras</button>
+            <button class="tab-btn" data-tab="passwords">Gerenciador de Senhas</button>
+            <button class="tab-btn" data-tab="files">Arquivos</button>
+          </div>
+
+          <div class="tab-content active" id="tab-notes">
+            <div class="vault-grid">
+              <div class="card">
+                <h3>Criar Nota Segura</h3>
+                <textarea id="noteContent" placeholder="Escreva sua nota altamente sensível aqui..."></textarea>
+                <button id="saveNoteBtn">Criptografar e Salvar</button>
+              </div>
+              <div class="card">
+                <h3>Suas Notas</h3>
+                <button id="loadNotesBtn" class="secondary-btn">Buscar Notas</button>
+                <ul id="notesList" class="notes-list"></ul>
               </div>
             </div>
+          </div>
 
-            <div class="card">
-              <h3>Notas Salvas</h3>
-              <button id="loadNotesBtn" class="secondary-btn">Buscar e Descriptografar Notas</button>
-              <ul id="notesList" class="notes-list">
-                <!-- Decrypted notes will appear here -->
-              </ul>
+          <div class="tab-content" id="tab-passwords">
+            <div class="vault-grid">
+              <div class="card">
+                <h3>Salvar Senha</h3>
+                <input type="text" id="pwTitle" placeholder="Título (ex: Gmail)" />
+                <input type="text" id="pwUser" placeholder="Usuário / Email" />
+                <input type="password" id="pwPass" placeholder="Senha" />
+                <input type="text" id="pwUrl" placeholder="URL (opcional)" />
+                <button id="savePasswordBtn">Criptografar e Salvar Senha</button>
+              </div>
+              <div class="card">
+                <h3>Suas Senhas</h3>
+                <button id="loadPasswordsBtn" class="secondary-btn">Buscar Senhas</button>
+                <ul id="passwordsList" class="notes-list"></ul>
+              </div>
             </div>
           </div>
+
+          <div class="tab-content" id="tab-files">
+            <div class="vault-grid">
+              <div class="card">
+                <h3>Fazer Upload de Arquivo</h3>
+                <p>Nesta versão MVP, selecione arquivos pequenos. Eles serão criptografados localmente antes do upload.</p>
+                <input type="file" id="fileInput" />
+                <button id="uploadFileBtn">Criptografar e Enviar</button>
+              </div>
+              <div class="card">
+                <h3>Seus Arquivos</h3>
+                <p>Módulo de resgate de arquivos (Em breve).</p>
+              </div>
+            </div>
+          </div>
+
         </div>
       </main>
       
       <footer>
-        <p>PyVault MVP - Trilha Forense e Arquitetura Zero-Knowledge</p>
+        <p>PyVault - Trilha Forense, Isolamento OCI e Zero-Knowledge</p>
       </footer>
     </div>
     

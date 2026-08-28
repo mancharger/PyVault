@@ -5,12 +5,10 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from .database import engine, Base
-from .routes import vault
+from .routes import vault, auth
 
-# Create database tables
 Base.metadata.create_all(bind=engine)
 
-# Rate Limiter setup (OWASP Top 10 - DoS prevention)
 limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
@@ -22,7 +20,6 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Security Headers Middleware
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
@@ -35,22 +32,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
-# CORS Middleware (Restrict this in production)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For development. Should be frontend URL in prod.
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Apply rate limiting globally or per route. Let's do a global 100 requests per minute for now.
-@app.middleware("http")
-async def rate_limit_middleware(request: Request, call_next):
-    # This is a simplified way to apply a global limit, but SlowAPI handles it better per-route.
-    # We will just apply it on specific routes if needed.
-    return await call_next(request)
-
+app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(vault.router, prefix="/api/vault", tags=["Vault"])
 
 @app.get("/")

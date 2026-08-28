@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from pydantic import BaseModel, constr, Field
 from .database import Base
 from datetime import datetime
@@ -15,26 +16,53 @@ class AuditLog(Base):
     ip_address = Column(String(45), nullable=False)
     action = Column(String(255), nullable=False)
     transaction_hash = Column(String(64), nullable=False)
-    # The previous hash in the chain
     previous_hash = Column(String(64), nullable=False)
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(255), unique=True, index=True, nullable=False)
+    # This is the hash of the Auth Key, not the Master Password itself
+    auth_hash = Column(String(255), nullable=False)
+    mfa_secret = Column(String(32), nullable=True)
+    mfa_enabled = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    notes = relationship("EncryptedNote", back_populates="owner")
+    passwords = relationship("EncryptedPassword", back_populates="owner")
 
 class EncryptedNote(Base):
     __tablename__ = "encrypted_notes"
 
     id = Column(Integer, primary_key=True, index=True)
-    # Storing IV and Ciphertext together or separately. 
-    # Usually a combined string like iv:salt:ciphertext or separated
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     ciphertext = Column(Text, nullable=False)
     iv = Column(String(255), nullable=False)
     salt = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    owner = relationship("User", back_populates="notes")
+
+class EncryptedPassword(Base):
+    __tablename__ = "encrypted_passwords"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    # The client will encrypt a JSON object containing title, username, password, url
+    ciphertext = Column(Text, nullable=False)
+    iv = Column(String(255), nullable=False)
+    salt = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    owner = relationship("User", back_populates="passwords")
+
 class EncryptedFileMetadata(Base):
     __tablename__ = "encrypted_file_metadata"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     file_id = Column(String(36), unique=True, index=True)
-    # The filename itself must be encrypted
     encrypted_filename = Column(Text, nullable=False)
     iv = Column(String(255), nullable=False)
     salt = Column(String(255), nullable=False)
@@ -43,16 +71,21 @@ class EncryptedFileMetadata(Base):
 
 # ----------------- PYDANTIC MODELS (Input Validation/Sanitization) -----------------
 
-# OWASP Top 10 - Injection Prevention:
-# We strictly limit the types, lengths, and patterns of the input.
+class UserCreate(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    auth_key: str = Field(..., min_length=16, description="Derivacao Argon2 para autenticacao")
 
-class NoteCreate(BaseModel):
-    # Base64 encoded ciphertext, iv, and salt
-    ciphertext: str = Field(..., min_length=1, max_length=100000, description="Base64 encoded ciphertext")
-    iv: str = Field(..., min_length=16, max_length=100, description="Base64 encoded Initialization Vector")
-    salt: str = Field(..., min_length=16, max_length=100, description="Base64 encoded Salt")
+class UserLogin(BaseModel):
+    username: str
+    auth_key: str
+    mfa_code: Optional[str] = None
 
-class NoteResponse(BaseModel):
+class VaultItemCreate(BaseModel):
+    ciphertext: str = Field(..., min_length=1, max_length=500000)
+    iv: str = Field(..., min_length=16, max_length=100)
+    salt: str = Field(..., min_length=16, max_length=100)
+
+class VaultItemResponse(BaseModel):
     id: int
     ciphertext: str
     iv: str
@@ -61,11 +94,6 @@ class NoteResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
-class FileMetadataCreate(BaseModel):
-    encrypted_filename: str = Field(..., min_length=1, max_length=2000)
-    iv: str = Field(..., min_length=16, max_length=100)
-    salt: str = Field(..., min_length=16, max_length=100)
 
 class AuditLogResponse(BaseModel):
     id: int
