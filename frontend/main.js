@@ -1,4 +1,4 @@
-﻿import argon2 from 'argon2-browser/dist/argon2-bundled.min.js';
+import argon2 from 'argon2-browser';
 import QRCode from 'qrcode';
 
 // --- DOM Elements ---
@@ -167,7 +167,7 @@ async function fetchApi(endpoint, options = {}) {
 registerBtn.addEventListener('click', async () => {
   const user = usernameInput.value;
   const pass = masterPasswordInput.value;
-  if (!user || !pass) return alert("Usuário e Senha são obrigatórios.");
+  if (!user || !pass) return alert("Usu�rio e Senha s�o obrigat�rios.");
   
   authLoader.classList.remove('hidden');
   await deriveKeys(pass, user);
@@ -196,7 +196,7 @@ let pendingLoginData = null;
 loginBtn.addEventListener('click', async () => {
   const user = usernameInput.value;
   const pass = masterPasswordInput.value;
-  if (!user || !pass) return alert("Usuário e Senha são obrigatórios.");
+  if (!user || !pass) return alert("Usu�rio e Senha s�o obrigat�rios.");
   
   authLoader.classList.remove('hidden');
   await deriveKeys(pass, user);
@@ -220,7 +220,7 @@ async function attemptLogin(payload) {
         enterVault();
       }
     } else {
-      alert(data.detail || "Credenciais inválidas");
+      alert(data.detail || "Credenciais inv�lidas");
     }
   } catch (e) {
     alert("Erro de rede");
@@ -231,7 +231,7 @@ async function attemptLogin(payload) {
 
 mfaVerifyBtn.addEventListener('click', async () => {
   const code = mfaCodeInput.value;
-  if (code.length !== 6) return alert("Código inválido");
+  if (code.length !== 6) return alert("C�digo inv�lido");
   
   pendingLoginData.mfa_code = code;
   await attemptLogin(pendingLoginData);
@@ -262,7 +262,7 @@ mfaSetupConfirmBtn.addEventListener('click', async () => {
     mfaSetupSection.classList.add('hidden');
     enterVault();
   } else {
-    alert("Código inválido");
+    alert("C�digo inv�lido");
   }
 });
 
@@ -332,7 +332,7 @@ savePasswordBtn.addEventListener('click', async () => {
     pass: pwPass.value,
     url: pwUrl.value
   };
-  if (!obj.title || !obj.pass) return alert("Título e Senha são obrigatórios");
+  if (!obj.title || !obj.pass) return alert("T�tulo e Senha s�o obrigat�rios");
   
   const payload = await encryptPayload(obj);
   const res = await fetchApi('/vault/passwords/', { method: 'POST', body: JSON.stringify(payload) });
@@ -355,7 +355,7 @@ loadPasswordsBtn.addEventListener('click', async () => {
     if (dec.error) {
       li.innerText = dec.error;
     } else {
-      li.innerHTML = `<strong>${dec.title}</strong><br>Usuário: ${dec.user}<br>Senha: ${dec.pass}<br>${dec.url}`;
+      li.innerHTML = `<strong>${dec.title}</strong><br>Usu�rio: ${dec.user}<br>Senha: ${dec.pass}<br>${dec.url}`;
     }
     passwordsList.appendChild(li);
   }
