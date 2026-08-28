@@ -1,4 +1,4 @@
-import argon2 from 'argon2-browser';
+﻿import argon2 from 'argon2-browser';
 
 // --- DOM Elements ---
 const authSection = document.getElementById('authSection');
@@ -20,21 +20,18 @@ let encryptionKey = null;
 
 // 1. Derive Key using Argon2
 async function deriveKey(password) {
-  // A static salt for derivation, in a real scenario we'd use a user-specific salt fetched from the server.
-  // Using a static one for MVP simplification.
   const salt = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
   
   try {
     const result = await argon2.hash({
       pass: password,
       salt: salt,
-      time: 2, // iterations
-      mem: 1024 * 64, // 64MB
-      hashLen: 32, // 256 bits for AES-256
+      time: 2,
+      mem: 1024 * 64,
+      hashLen: 32,
       type: argon2.ArgonType.Argon2id
     });
     
-    // Convert derived hash to CryptoKey for Web Crypto API
     encryptionKey = await window.crypto.subtle.importKey(
       "raw",
       result.hash,
@@ -45,13 +42,12 @@ async function deriveKey(password) {
     
     return true;
   } catch (e) {
-    console.error("Argon2 derivation failed", e);
-    alert("Key derivation failed.");
+    console.error("Falha na derivacao da chave Argon2", e);
+    alert("Falha na derivação da chave.");
     return false;
   }
 }
 
-// Helper: Convert ArrayBuffer to Base64
 function bufferToBase64(buffer) {
   let binary = '';
   const bytes = new Uint8Array(buffer);
@@ -61,7 +57,6 @@ function bufferToBase64(buffer) {
   return window.btoa(binary);
 }
 
-// Helper: Convert Base64 to ArrayBuffer
 function base64ToBuffer(base64) {
   const binary_string = window.atob(base64);
   const len = binary_string.length;
@@ -78,7 +73,7 @@ async function encryptNote(text) {
   const encoded = enc.encode(text);
   
   const iv = window.crypto.getRandomValues(new Uint8Array(12));
-  const salt = window.crypto.getRandomValues(new Uint8Array(16)); // Random salt just for payload metadata
+  const salt = window.crypto.getRandomValues(new Uint8Array(16));
   
   const ciphertext = await window.crypto.subtle.encrypt(
     { name: "AES-GCM", iv: iv },
@@ -108,8 +103,8 @@ async function decryptNote(ciphertextB64, ivB64) {
     const dec = new TextDecoder();
     return dec.decode(decrypted);
   } catch (e) {
-    console.error("Decryption failed", e);
-    return "❌ Decryption failed (Wrong Master Password?)";
+    console.error("Falha na descriptografia", e);
+    return "?O Falha na descriptografia (Senha mestra incorreta?)";
   }
 }
 
@@ -117,13 +112,11 @@ async function decryptNote(ciphertextB64, ivB64) {
 
 unlockBtn.addEventListener('click', async () => {
   const pass = masterPasswordInput.value;
-  if (!pass) return alert("Please enter a master password.");
+  if (!pass) return alert("Por favor, insira uma senha mestra.");
   
   unlockBtn.disabled = true;
   cryptoLoader.classList.remove('hidden');
   
-  // Simulate slight delay for UI feel if Argon2 is too fast, though Argon2 is usually deliberately slow.
-  // Wait a tick to allow UI to render the loader
   setTimeout(async () => {
     const success = await deriveKey(pass);
     cryptoLoader.classList.add('hidden');
@@ -138,16 +131,14 @@ unlockBtn.addEventListener('click', async () => {
 
 saveNoteBtn.addEventListener('click', async () => {
   const text = noteContent.value;
-  if (!text) return alert("Note is empty.");
+  if (!text) return alert("A nota está vazia.");
   
   saveNoteBtn.disabled = true;
   saveLoader.classList.remove('hidden');
   
   try {
-    // 1. Encrypt locally
     const encryptedPayload = await encryptNote(text);
     
-    // 2. Send to API
     const response = await fetch('http://localhost:8000/api/vault/notes/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -156,13 +147,13 @@ saveNoteBtn.addEventListener('click', async () => {
     
     if (response.ok) {
       noteContent.value = "";
-      alert("Note encrypted and saved successfully!");
+      alert("Nota criptografada e salva com sucesso!");
     } else {
-      alert("Failed to save note on server.");
+      alert("Falha ao salvar a nota no servidor.");
     }
   } catch (e) {
     console.error(e);
-    alert("Network or encryption error.");
+    alert("Erro de rede ou criptografia.");
   } finally {
     saveLoader.classList.add('hidden');
     saveNoteBtn.disabled = false;
@@ -171,32 +162,30 @@ saveNoteBtn.addEventListener('click', async () => {
 
 loadNotesBtn.addEventListener('click', async () => {
   loadNotesBtn.disabled = true;
-  loadNotesBtn.innerText = "Loading & Decrypting...";
+  loadNotesBtn.innerText = "Carregando e Descriptografando...";
   
   try {
     const response = await fetch('http://localhost:8000/api/vault/notes/');
-    if (!response.ok) throw new Error("Failed to fetch notes");
+    if (!response.ok) throw new Error("Falha ao buscar as notas");
     
     const notes = await response.json();
     notesList.innerHTML = "";
     
     if (notes.length === 0) {
-      notesList.innerHTML = "<li>No secure notes found.</li>";
+      notesList.innerHTML = "<li>Nenhuma nota segura encontrada.</li>";
     }
     
     for (const note of notes) {
-      // Decrypt locally
       const decryptedText = await decryptNote(note.ciphertext, note.iv);
-      
       const li = document.createElement('li');
       li.innerText = decryptedText;
       notesList.appendChild(li);
     }
   } catch (e) {
     console.error(e);
-    alert("Error fetching notes.");
+    alert("Erro ao buscar as notas.");
   } finally {
     loadNotesBtn.disabled = false;
-    loadNotesBtn.innerText = "Fetch & Decrypt Notes";
+    loadNotesBtn.innerText = "Buscar e Descriptografar Notas";
   }
 });

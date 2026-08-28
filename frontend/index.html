@@ -1,10 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PyVault - Zero Knowledge Storage</title>
+    <title>PyVault - Cofre Zero Knowledge</title>
     <link rel="stylesheet" href="./style.css">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
   </head>
@@ -17,39 +17,39 @@
         </div>
         <div class="status-indicator">
           <span class="dot"></span>
-          <span class="status-text">Client-Side Encryption Active</span>
+          <span class="status-text">Criptografia no Cliente Ativa</span>
         </div>
       </header>
 
       <main>
         <div class="auth-section" id="authSection">
-          <h2>Master Password</h2>
-          <p>Your password never leaves this device. It is used to locally derive your encryption key via Argon2.</p>
+          <h2>Senha Mestra</h2>
+          <p>Sua senha nunca sai deste dispositivo. Ela é usada para derivar localmente sua chave de criptografia via Argon2.</p>
           <div class="input-group">
-            <input type="password" id="masterPassword" placeholder="Enter your master password..." />
-            <button id="unlockBtn">Unlock Vault</button>
+            <input type="password" id="masterPassword" placeholder="Digite sua senha mestra..." />
+            <button id="unlockBtn">Desbloquear Cofre</button>
           </div>
           <div id="cryptoLoader" class="loader hidden">
             <div class="spinner"></div>
-            <span>Deriving cryptographic key...</span>
+            <span>Derivando chave criptográfica...</span>
           </div>
         </div>
 
         <div class="vault-section hidden" id="vaultSection">
           <div class="vault-grid">
             <div class="card">
-              <h3>Secure Note</h3>
-              <textarea id="noteContent" placeholder="Write your highly sensitive note here..."></textarea>
-              <button id="saveNoteBtn">Encrypt & Save</button>
+              <h3>Nota Segura</h3>
+              <textarea id="noteContent" placeholder="Escreva sua nota altamente sensível aqui..."></textarea>
+              <button id="saveNoteBtn">Criptografar e Salvar</button>
               <div id="saveLoader" class="loader hidden">
                 <div class="spinner"></div>
-                <span>Encrypting AES-256-GCM...</span>
+                <span>Criptografando AES-256-GCM...</span>
               </div>
             </div>
 
             <div class="card">
-              <h3>Stored Notes</h3>
-              <button id="loadNotesBtn" class="secondary-btn">Fetch & Decrypt Notes</button>
+              <h3>Notas Salvas</h3>
+              <button id="loadNotesBtn" class="secondary-btn">Buscar e Descriptografar Notas</button>
               <ul id="notesList" class="notes-list">
                 <!-- Decrypted notes will appear here -->
               </ul>
@@ -59,7 +59,7 @@
       </main>
       
       <footer>
-        <p>PyVault MVP - Forensic Audit Trail & Zero-Knowledge Architecture</p>
+        <p>PyVault MVP - Trilha Forense e Arquitetura Zero-Knowledge</p>
       </footer>
     </div>
     
