@@ -20,8 +20,8 @@ services:
       - backend_data:/code
     # Do not map ports to the host here to ensure isolation!
     # API should only be accessible through Nginx.
-    expose:
-      - "8000"
+    ports:
+      - "8000:8000"
     networks:
       - internal
     depends_on:
@@ -51,3 +51,4 @@ volumes:
 networks:
   internal:
     driver: bridge
+
