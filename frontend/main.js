@@ -1,5 +1,21 @@
-import argon2 from 'argon2-browser';
+﻿import argon2 from 'argon2-browser';
 import QRCode from 'qrcode';
+
+// --- Toast System ---
+function showToast(message, type = 'success') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerText = message;
+  container.appendChild(toast);
+  
+  // Remove after animation (4.3s total)
+  setTimeout(() => {
+    if(container.contains(toast)) {
+      container.removeChild(toast);
+    }
+  }, 4300);
+}
 
 // --- DOM Elements ---
 const authSection = document.getElementById('authSection');
@@ -27,6 +43,7 @@ const tabBtns = document.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
 
 // Notes
+const noteTitle = document.getElementById('noteTitle');
 const noteContent = document.getElementById('noteContent');
 const saveNoteBtn = document.getElementById('saveNoteBtn');
 const loadNotesBtn = document.getElementById('loadNotesBtn');
@@ -167,7 +184,7 @@ async function fetchApi(endpoint, options = {}) {
 registerBtn.addEventListener('click', async () => {
   const user = usernameInput.value;
   const pass = masterPasswordInput.value;
-  if (!user || !pass) return alert("Usu�rio e Senha s�o obrigat�rios.");
+  if (!user || !pass) return showToast("Usuário e Senha são obrigatórios.", "error");
   
   authLoader.classList.remove('hidden');
   await deriveKeys(pass, user);
@@ -182,10 +199,10 @@ registerBtn.addEventListener('click', async () => {
       jwtToken = data.access_token;
       showMfaSetup();
     } else {
-      alert(data.detail || "Erro ao registrar");
+      showToast(data.detail || "Erro ao registrar", "error");
     }
   } catch (e) {
-    alert("Erro de rede");
+    showToast("Erro de rede", "error");
   } finally {
     authLoader.classList.add('hidden');
   }
@@ -196,7 +213,7 @@ let pendingLoginData = null;
 loginBtn.addEventListener('click', async () => {
   const user = usernameInput.value;
   const pass = masterPasswordInput.value;
-  if (!user || !pass) return alert("Usu�rio e Senha s�o obrigat�rios.");
+  if (!user || !pass) return showToast("Usuário e Senha são obrigatórios.", "error");
   
   authLoader.classList.remove('hidden');
   await deriveKeys(pass, user);
@@ -215,15 +232,16 @@ async function attemptLogin(payload) {
     if (res.ok) {
       if (data.mfa_required) {
         mfaPromptSection.classList.remove('hidden');
+        showToast("Insira seu código MFA.", "success");
       } else {
         jwtToken = data.access_token;
         enterVault();
       }
     } else {
-      alert(data.detail || "Credenciais inv�lidas");
+      showToast(data.detail || "Credenciais inválidas", "error");
     }
   } catch (e) {
-    alert("Erro de rede");
+    showToast("Erro de rede", "error");
   } finally {
     authLoader.classList.add('hidden');
   }
@@ -231,7 +249,7 @@ async function attemptLogin(payload) {
 
 mfaVerifyBtn.addEventListener('click', async () => {
   const code = mfaCodeInput.value;
-  if (code.length !== 6) return alert("C�digo inv�lido");
+  if (code.length !== 6) return showToast("Código inválido", "error");
   
   pendingLoginData.mfa_code = code;
   await attemptLogin(pendingLoginData);
@@ -258,11 +276,11 @@ mfaSetupConfirmBtn.addEventListener('click', async () => {
   });
   
   if (res.ok) {
-    alert("MFA Ativado com sucesso!");
+    showToast("MFA Ativado com sucesso!", "success");
     mfaSetupSection.classList.add('hidden');
     enterVault();
   } else {
-    alert("C�digo inv�lido");
+    showToast("Código inválido", "error");
   }
 });
 
@@ -294,33 +312,72 @@ tabBtns.forEach(btn => {
   });
 });
 
+// --- UI Helpers ---
+function createExpandableItem(titleText, contentHtml) {
+  const li = document.createElement('li');
+  
+  const header = document.createElement('div');
+  header.className = 'item-header';
+  header.innerHTML = `<span>${titleText}</span> <span>+</span>`;
+  
+  const details = document.createElement('div');
+  details.className = 'item-details hidden';
+  details.innerHTML = contentHtml;
+  
+  header.addEventListener('click', () => {
+    details.classList.toggle('hidden');
+    const span = header.querySelectorAll('span')[1];
+    span.innerText = details.classList.contains('hidden') ? '+' : '-';
+  });
+  
+  li.appendChild(header);
+  li.appendChild(details);
+  return li;
+}
+
 // --- Notes Logic ---
 saveNoteBtn.addEventListener('click', async () => {
+  const title = noteTitle.value;
   const text = noteContent.value;
-  if (!text) return alert("Nota vazia");
   
-  const payload = await encryptPayload({ text });
+  if (!title || !text) return showToast("Título e conteúdo são obrigatórios", "error");
+  
+  const payload = await encryptPayload({ title, text });
   const res = await fetchApi('/vault/notes/', { method: 'POST', body: JSON.stringify(payload) });
   
   if (res.ok) {
-    alert("Nota salva de forma segura!");
+    showToast("Nota salva de forma segura!", "success");
+    noteTitle.value = "";
     noteContent.value = "";
+    loadNotesBtn.click(); // auto reload
   } else {
-    alert("Erro ao salvar nota");
+    showToast("Erro ao salvar nota", "error");
   }
 });
 
 loadNotesBtn.addEventListener('click', async () => {
   const res = await fetchApi('/vault/notes/');
-  if (!res.ok) return alert("Erro ao buscar notas");
+  if (!res.ok) return showToast("Erro ao buscar notas", "error");
   const notes = await res.json();
   
   notesList.innerHTML = "";
+  if(notes.length === 0) {
+    notesList.innerHTML = "<p>Nenhuma nota encontrada.</p>";
+    return;
+  }
+  
   for (const n of notes) {
     const dec = await decryptPayload(n.ciphertext, n.iv);
-    const li = document.createElement('li');
-    li.innerText = dec.text || dec.error;
-    notesList.appendChild(li);
+    
+    if (dec.error) {
+      const li = createExpandableItem("Erro de Descriptografia", dec.error);
+      notesList.appendChild(li);
+    } else {
+      // Fallback para notas antigas sem titulo
+      const t = dec.title || "Nota Sem Título";
+      const li = createExpandableItem(t, dec.text);
+      notesList.appendChild(li);
+    }
   }
 });
 
@@ -332,31 +389,47 @@ savePasswordBtn.addEventListener('click', async () => {
     pass: pwPass.value,
     url: pwUrl.value
   };
-  if (!obj.title || !obj.pass) return alert("T�tulo e Senha s�o obrigat�rios");
+  if (!obj.title || !obj.pass) return showToast("Título e Senha são obrigatórios", "error");
   
   const payload = await encryptPayload(obj);
   const res = await fetchApi('/vault/passwords/', { method: 'POST', body: JSON.stringify(payload) });
   
   if (res.ok) {
-    alert("Senha salva e criptografada!");
+    showToast("Senha salva e criptografada!", "success");
     pwTitle.value = pwUser.value = pwPass.value = pwUrl.value = "";
+    loadPasswordsBtn.click(); // auto reload
   }
 });
 
 loadPasswordsBtn.addEventListener('click', async () => {
   const res = await fetchApi('/vault/passwords/');
-  if (!res.ok) return alert("Erro ao buscar senhas");
+  if (!res.ok) return showToast("Erro ao buscar senhas", "error");
   const pws = await res.json();
   
   passwordsList.innerHTML = "";
+  if(pws.length === 0) {
+    passwordsList.innerHTML = "<p>Nenhuma senha encontrada.</p>";
+    return;
+  }
+  
   for (const p of pws) {
     const dec = await decryptPayload(p.ciphertext, p.iv);
-    const li = document.createElement('li');
+    
     if (dec.error) {
-      li.innerText = dec.error;
+      const li = createExpandableItem("Erro", dec.error);
+      passwordsList.appendChild(li);
     } else {
-      li.innerHTML = `<strong>${dec.title}</strong><br>Usu�rio: ${dec.user}<br>Senha: ${dec.pass}<br>${dec.url}`;
+      const id = `pwd-${Math.random().toString(36).substr(2, 9)}`;
+      const html = `
+        Usuário: <strong>${dec.user}</strong><br>
+        URL: <a href="${dec.url}" target="_blank" style="color:var(--primary-color)">${dec.url}</a><br><br>
+        Senha: <span id="${id}">${dec.pass}</span><br>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('${id}').innerText).then(()=>alert('Senha copiada!'))">Copiar Senha</button>
+      `;
+      const li = createExpandableItem(dec.title, html);
+      passwordsList.appendChild(li);
+      document.getElementById('btn-' + id).addEventListener('click', () => { navigator.clipboard.writeText(dec.pass); showToast('Senha copiada!', 'success'); });
     }
-    passwordsList.appendChild(li);
   }
 });
+

@@ -9,6 +9,9 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
   </head>
   <body>
+    <!-- Toast Notifications Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
     <div id="app">
       <header>
         <div class="logo">
@@ -36,7 +39,6 @@
             </div>
           </div>
           
-          <!-- MFA Prompt -->
           <div id="mfaPromptSection" class="hidden" style="margin-top: 15px;">
             <h3>Verificação em Duas Etapas (MFA)</h3>
             <input type="text" id="mfaCodeInput" placeholder="Código de 6 dígitos" maxlength="6" />
@@ -71,12 +73,14 @@
             <button class="tab-btn" data-tab="files">Arquivos</button>
           </div>
 
+          <!-- NOTES TAB -->
           <div class="tab-content active" id="tab-notes">
             <div class="vault-grid">
               <div class="card">
                 <h3>Criar Nota Segura</h3>
+                <input type="text" id="noteTitle" placeholder="Título da Nota" style="margin-bottom: 10px;" />
                 <textarea id="noteContent" placeholder="Escreva sua nota altamente sensível aqui..."></textarea>
-                <button id="saveNoteBtn">Criptografar e Salvar</button>
+                <button id="saveNoteBtn" style="margin-top: 10px;">Criptografar e Salvar</button>
               </div>
               <div class="card">
                 <h3>Suas Notas</h3>
@@ -86,6 +90,7 @@
             </div>
           </div>
 
+          <!-- PASSWORDS TAB -->
           <div class="tab-content" id="tab-passwords">
             <div class="vault-grid">
               <div class="card">
@@ -104,11 +109,12 @@
             </div>
           </div>
 
+          <!-- FILES TAB -->
           <div class="tab-content" id="tab-files">
             <div class="vault-grid">
               <div class="card">
                 <h3>Fazer Upload de Arquivo</h3>
-                <p>Nesta versão MVP, selecione arquivos pequenos. Eles serão criptografados localmente antes do upload.</p>
+                <p>Nesta versão MVP, selecione arquivos pequenos.</p>
                 <input type="file" id="fileInput" />
                 <button id="uploadFileBtn">Criptografar e Enviar</button>
               </div>

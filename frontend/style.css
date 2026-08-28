@@ -142,12 +142,33 @@ button:disabled {
 
 .notes-list li {
   background: #222;
-  padding: 15px;
   margin-bottom: 10px;
   border-radius: 6px;
+  border-left: 3px solid var(--primary-color);
+  overflow: hidden;
+}
+
+.item-header {
+  padding: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 0.2s;
+}
+
+.item-header:hover {
+  background: #2a2a2a;
+}
+
+.item-details {
+  padding: 15px;
+  border-top: 1px solid #333;
+  background: #1a1a1a;
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.9rem;
-  border-left: 3px solid var(--primary-color);
+  white-space: pre-wrap;
   word-wrap: break-word;
 }
 
@@ -207,4 +228,53 @@ footer {
 
 .tab-content.active {
   display: block;
+}
+
+/* Toasts */
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toast {
+  background: #222;
+  color: white;
+  padding: 15px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  border-left: 4px solid var(--primary-color);
+  transform: translateX(120%);
+  animation: slideIn 0.3s forwards, fadeOut 0.3s forwards 4s;
+}
+
+.toast.error {
+  border-left-color: #ff4444;
+}
+
+@keyframes slideIn {
+  to { transform: translateX(0); }
+}
+
+@keyframes fadeOut {
+  to { opacity: 0; visibility: hidden; }
+}
+
+.copy-btn {
+  background: #333;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-top: 10px;
+}
+.copy-btn:hover {
+  background: var(--primary-color);
+  color: black;
 }
