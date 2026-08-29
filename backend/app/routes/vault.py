@@ -1,9 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
+import os
+import uuid
 
 from ..database import get_db
-from ..models import NoteCreate, VaultItemResponse, EncryptedNote, EncryptedPassword, AuditLogResponse, AuditLog, VaultItemCreate, User
+from ..models import VaultItemResponse, EncryptedNote, EncryptedPassword, AuditLogResponse, AuditLog, VaultItemCreate, User, EncryptedFileMetadata, FileMetadataResponse
 from ..audit import log_event
 from .auth import get_current_user
 
@@ -65,6 +68,75 @@ def get_passwords(request: Request, current_user: User = Depends(get_current_use
     log_event(db, client_ip, f"USER_{current_user.id}_ACCESSED_PASSWORDS")
     
     return passwords
+
+
+# ----------------- FILES -----------------
+
+@router.post("/files/upload/", response_model=FileMetadataResponse)
+async def upload_file(
+    request: Request,
+    file: UploadFile = File(...),
+    encrypted_filename: str = Form(...),
+    iv: str = Form(...),
+    salt: str = Form(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    client_ip = request.client.host if request.client else "unknown"
+    
+    # Check file size (1MB limit)
+    contents = await file.read()
+    if len(contents) > 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (1MB limit)")
+    
+    # Generate unique file_id
+    file_id = str(uuid.uuid4())
+    upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
+    file_path = os.path.join(upload_dir, file_id)
+    
+    # Save encrypted blob to disk
+    with open(file_path, "wb") as f:
+        f.write(contents)
+        
+    # Save metadata to DB
+    db_file = EncryptedFileMetadata(
+        user_id=current_user.id,
+        file_id=file_id,
+        encrypted_filename=encrypted_filename,
+        iv=iv,
+        salt=salt
+    )
+    db.add(db_file)
+    db.commit()
+    db.refresh(db_file)
+    
+    log_event(db, client_ip, f"USER_{current_user.id}_UPLOADED_FILE_{file_id}")
+    return db_file
+
+@router.get("/files/", response_model=List[FileMetadataResponse])
+def get_files(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    client_ip = request.client.host if request.client else "unknown"
+    files = db.query(EncryptedFileMetadata).filter(EncryptedFileMetadata.user_id == current_user.id).all()
+    log_event(db, client_ip, f"USER_{current_user.id}_ACCESSED_FILES")
+    return files
+
+@router.get("/files/download/{file_id}")
+def download_file(file_id: str, request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    client_ip = request.client.host if request.client else "unknown"
+    
+    db_file = db.query(EncryptedFileMetadata).filter(EncryptedFileMetadata.file_id == file_id).first()
+    if not db_file or db_file.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
+    file_path = os.path.join(upload_dir, file_id)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Physical file missing")
+        
+    log_event(db, client_ip, f"USER_{current_user.id}_DOWNLOADED_FILE_{file_id}")
+    
+    return FileResponse(path=file_path, media_type="application/octet-stream", filename=file_id)
 
 
 # ----------------- AUDIT -----------------

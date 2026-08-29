@@ -95,6 +95,17 @@ class VaultItemResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class FileMetadataResponse(BaseModel):
+    id: int
+    file_id: str
+    encrypted_filename: str
+    iv: str
+    salt: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 class AuditLogResponse(BaseModel):
     id: int
     timestamp: datetime

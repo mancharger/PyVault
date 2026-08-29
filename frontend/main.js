@@ -1,4 +1,4 @@
-﻿import argon2 from 'argon2-browser';
+import argon2 from 'argon2-browser';
 import QRCode from 'qrcode';
 
 // --- Toast System ---
@@ -57,6 +57,12 @@ const pwUrl = document.getElementById('pwUrl');
 const savePasswordBtn = document.getElementById('savePasswordBtn');
 const loadPasswordsBtn = document.getElementById('loadPasswordsBtn');
 const passwordsList = document.getElementById('passwordsList');
+
+// Files
+const fileInput = document.getElementById('fileInput');
+const uploadFileBtn = document.getElementById('uploadFileBtn');
+const loadFilesBtn = document.getElementById('loadFilesBtn');
+const filesList = document.getElementById('filesList');
 
 // Global state
 let encryptionKey = null;
@@ -433,3 +439,132 @@ loadPasswordsBtn.addEventListener('click', async () => {
   }
 });
 
+
+
+// --- Files Logic ---
+uploadFileBtn.addEventListener('click', async () => {
+  if (fileInput.files.length === 0) return showToast("Selecione um arquivo", "error");
+  
+  const file = fileInput.files[0];
+  if (file.size > 1024 * 1024) {
+    return showToast("O arquivo não pode exceder 1MB", "error");
+  }
+  
+  showToast("Criptografando arquivo localmente...", "success");
+  
+  const arrayBuffer = await file.arrayBuffer();
+  
+  const ivFile = window.crypto.getRandomValues(new Uint8Array(12));
+  const salt = window.crypto.getRandomValues(new Uint8Array(16));
+  
+  const ciphertextBuf = await window.crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: ivFile },
+    encryptionKey,
+    arrayBuffer
+  );
+  
+  const ivName = window.crypto.getRandomValues(new Uint8Array(12));
+  const enc = new TextEncoder();
+  const encFilenameBuf = await window.crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: ivName },
+    encryptionKey,
+    enc.encode(file.name)
+  );
+  
+  const encFilenameStr = bufferToBase64(ivName) + ":" + bufferToBase64(encFilenameBuf);
+  
+  const formData = new FormData();
+  formData.append("file", new Blob([ciphertextBuf]), "encrypted_blob");
+  formData.append("encrypted_filename", encFilenameStr);
+  formData.append("iv", bufferToBase64(ivFile));
+  formData.append("salt", bufferToBase64(salt));
+  
+  const res = await fetch('http://localhost:8000/api/vault/files/upload/', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${jwtToken}` },
+    body: formData
+  });
+  
+  if (res.ok) {
+    showToast("Arquivo enviado com segurança!", "success");
+    fileInput.value = "";
+    loadFilesBtn.click();
+  } else {
+    const errorData = await res.json();
+    showToast(errorData.detail || "Erro ao fazer upload", "error");
+  }
+});
+
+loadFilesBtn.addEventListener('click', async () => {
+  const res = await fetchApi('/vault/files/');
+  if (!res.ok) return showToast("Erro ao buscar arquivos", "error");
+  const files = await res.json();
+  
+  filesList.innerHTML = "";
+  if(files.length === 0) {
+    filesList.innerHTML = "<p>Nenhum arquivo encontrado.</p>";
+    return;
+  }
+  
+  for (const f of files) {
+    let filename = "Arquivo Desconhecido";
+    const parts = f.encrypted_filename.split(':');
+    if (parts.length === 2) {
+      try {
+        const iv = base64ToBuffer(parts[0]);
+        const cipher = base64ToBuffer(parts[1]);
+        const decrypted = await window.crypto.subtle.decrypt(
+          { name: "AES-GCM", iv: iv },
+          encryptionKey,
+          cipher
+        );
+        filename = new TextDecoder().decode(decrypted);
+      } catch (e) {
+        filename = "Erro ao descriptografar nome";
+      }
+    }
+    
+    const id = `file-${f.file_id}`;
+    const html = `
+      <p>Salvo em: ${new Date(f.created_at).toLocaleString()}</p>
+      <button class="secondary-btn" id="${id}" style="margin-top: 10px;">Decifrar e Baixar Localmente</button>
+    `;
+    const li = createExpandableItem(filename, html);
+    filesList.appendChild(li);
+    
+    document.getElementById(id).addEventListener('click', async () => {
+      showToast("Baixando blob criptografado...", "success");
+      const dRes = await fetch(`http://localhost:8000/api/vault/files/download/${f.file_id}`, {
+        headers: { 'Authorization': `Bearer ${jwtToken}` }
+      });
+      
+      if (!dRes.ok) return showToast("Erro no download", "error");
+      
+      const encBlob = await dRes.blob();
+      const encBuffer = await encBlob.arrayBuffer();
+      const ivBuffer = base64ToBuffer(f.iv);
+      
+      try {
+        const decBuffer = await window.crypto.subtle.decrypt(
+          { name: "AES-GCM", iv: ivBuffer },
+          encryptionKey,
+          encBuffer
+        );
+        
+        const decBlob = new Blob([decBuffer], { type: "application/octet-stream" });
+        const url = URL.createObjectURL(decBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        
+        showToast("Download completo!", "success");
+      } catch (e) {
+        showToast("Erro ao decifrar o arquivo. Chave incorreta?", "error");
+      }
+    });
+  }
+});

@@ -10,9 +10,12 @@ from ..database import get_db
 from ..models import User, UserCreate, UserLogin
 from ..audit import log_event
 
+import os
+import secrets
+
 router = APIRouter()
 
-SECRET_KEY = "SUPER_SECRET_KEY_REPLACE_IN_PROD"
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", secrets.token_hex(32))
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
