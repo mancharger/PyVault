@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -48,7 +50,23 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(vault.router, prefix="/api/vault", tags=["Vault"])
 
-@app.get("/")
-@limiter.limit("5/minute")
-def read_root(request: Request):
-    return {"status": "PyVault API is running securely."}
+# Serve os arquivos estáticos do frontend (gerados pelo Vite)
+STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+if os.path.exists(STATIC_DIR):
+    app.mount("/assets", StaticFiles(directory=os.path.join(STATIC_DIR, "assets")), name="assets")
+
+    @app.get("/")
+    def serve_frontend():
+        """Serve o index.html do frontend para a rota raiz."""
+        return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+
+    @app.get("/{full_path:path}")
+    def serve_frontend_routes(full_path: str):
+        """Fallback: qualquer rota não reconhecida pela API retorna o index.html (SPA routing)."""
+        index = os.path.join(STATIC_DIR, "index.html")
+        return FileResponse(index)
+else:
+    @app.get("/")
+    @limiter.limit("5/minute")
+    def read_root(request: Request):
+        return {"status": "PyVault API is running securely. Frontend not built."}
