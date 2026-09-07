@@ -1,0 +1,17 @@
+name: Deploy Automático na OCI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Atualizar código e reiniciar aplicação
+        run: |
+          cd ~/projeto
+          git pull origin main
+          docker compose up -d --build
