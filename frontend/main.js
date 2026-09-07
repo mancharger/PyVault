@@ -183,7 +183,8 @@ async function fetchApi(endpoint, options = {}) {
     headers['Authorization'] = `Bearer ${jwtToken}`;
   }
   options.headers = { ...headers, ...options.headers };
-  return fetch(`http://localhost:8000/api${endpoint}`, options);
+  return fetch(`/api${endpoint}`, options);
+
 }
 
 // --- Auth Flows ---
