@@ -226,3 +226,6 @@ __pycache__/
 spec.md
 backend/vault.db
 backend/app/uploads/
+data/
+*.key
+*.crt
