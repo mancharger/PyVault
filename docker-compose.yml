@@ -8,7 +8,7 @@ services:
     ports:
       - "8000:8000"          # O Nginx da OCI faz proxy para esta porta
     volumes:
-      - backend_data:/code   # Persistência do banco de dados SQLite
+      - backend_data:/code/data   # Persistência do banco de dados SQLite e Arquivos
 
 volumes:
   backend_data:

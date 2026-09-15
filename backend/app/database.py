@@ -3,9 +3,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
+# Ensure data directory exists
+os.makedirs("/code/data", exist_ok=True)
 # Simulate OCI Database with a local SQLite file for development
 # In a real environment, this would be an Oracle connection string
-SQLALCHEMY_DATABASE_URL = "sqlite:///./vault.db"
+SQLALCHEMY_DATABASE_URL = "sqlite:////code/data/vault.db"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}

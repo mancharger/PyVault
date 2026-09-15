@@ -31,7 +31,7 @@ COPY backend/app /code/app
 COPY --from=frontend-builder /frontend/dist /code/app/static
 
 # Roda como usuário não-root para maior segurança
-RUN useradd -m vaultuser && chown -R vaultuser:vaultuser /code
+RUN mkdir -p /code/data && useradd -m vaultuser && chown -R vaultuser:vaultuser /code
 USER vaultuser
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

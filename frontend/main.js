@@ -480,7 +480,7 @@ uploadFileBtn.addEventListener('click', async () => {
   formData.append("iv", bufferToBase64(ivFile));
   formData.append("salt", bufferToBase64(salt));
   
-  const res = await fetch('http://localhost:8000/api/vault/files/upload/', {
+  const res = await fetch('/api/vault/files/upload/', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${jwtToken}` },
     body: formData
@@ -535,7 +535,7 @@ loadFilesBtn.addEventListener('click', async () => {
     
     document.getElementById(id).addEventListener('click', async () => {
       showToast("Baixando blob criptografado...", "success");
-      const dRes = await fetch(`http://localhost:8000/api/vault/files/download/${f.file_id}`, {
+      const dRes = await fetch(`/api/vault/files/download/${f.file_id}`, {
         headers: { 'Authorization': `Bearer ${jwtToken}` }
       });
       

@@ -91,7 +91,7 @@ async def upload_file(
     
     # Generate unique file_id
     file_id = str(uuid.uuid4())
-    upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
+    upload_dir = "/code/data/uploads"
     file_path = os.path.join(upload_dir, file_id)
     
     # Save encrypted blob to disk
@@ -128,7 +128,7 @@ def download_file(file_id: str, request: Request, current_user: User = Depends(g
     if not db_file or db_file.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="File not found")
         
-    upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
+    upload_dir = "/code/data/uploads"
     file_path = os.path.join(upload_dir, file_id)
     
     if not os.path.exists(file_path):
