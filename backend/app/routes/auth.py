@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from passlib.hash import argon2
 
 from ..database import get_db
-from ..models import User, UserCreate, UserLogin
+from ..models import User, UserCreate, UserLogin, TokenBlocklist
 from ..audit import log_event
 
 import os
@@ -32,6 +32,12 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Nao autorizado")
     
     token = auth_header.split(" ")[1]
+    
+    # Verify if token is in blocklist
+    is_blocked = db.query(TokenBlocklist).filter(TokenBlocklist.token == token).first()
+    if is_blocked:
+        raise HTTPException(status_code=401, detail="Token revogado (sessao encerrada)")
+        
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
@@ -121,3 +127,24 @@ def verify_mfa(code: dict, current_user: User = Depends(get_current_user), db: S
         return {"status": "MFA ativado com sucesso"}
         
     raise HTTPException(status_code=400, detail="Codigo invalido")
+
+@router.post("/logout")
+def logout(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Nao autorizado")
+        
+    token = auth_header.split(" ")[1]
+    
+    # Check if already blocked to avoid IntegrityError on unique constraint
+    is_blocked = db.query(TokenBlocklist).filter(TokenBlocklist.token == token).first()
+    if not is_blocked:
+        blocked_token = TokenBlocklist(token=token)
+        db.add(blocked_token)
+        db.commit()
+    
+    client_ip = request.client.host if request.client else "unknown"
+    log_event(db, client_ip, f"USER_LOGGED_OUT_{current_user.id}")
+    
+    return {"status": "Logout realizado com sucesso"}
+

@@ -64,10 +64,26 @@ const uploadFileBtn = document.getElementById('uploadFileBtn');
 const loadFilesBtn = document.getElementById('loadFilesBtn');
 const filesList = document.getElementById('filesList');
 
-// Global state
-let encryptionKey = null;
-let authKeyHex = null;
-let jwtToken = null;
+// --- Global State Encapsulation (Closure para blindar chaves) ---
+const VaultState = (function () {
+  let _encryptionKey = null;
+  let _authKeyHex = null;
+  let _jwtToken = null;
+
+  return {
+    setEncryptionKey: (key) => { _encryptionKey = key; },
+    getEncryptionKey: () => _encryptionKey,
+    setAuthKeyHex: (hex) => { _authKeyHex = hex; },
+    getAuthKeyHex: () => _authKeyHex,
+    setJwtToken: (token) => { _jwtToken = token; },
+    getJwtToken: () => _jwtToken,
+    clearAll: () => {
+      _encryptionKey = null;
+      _authKeyHex = null;
+      _jwtToken = null;
+    }
+  };
+})();
 
 // --- Cryptographic Functions (Zero-Knowledge) ---
 
@@ -95,15 +111,16 @@ async function deriveKeys(password, username) {
     const authBytes = rawHash.slice(0, 32);
     const encBytes = rawHash.slice(32, 64);
     
-    authKeyHex = bufferToHex(authBytes);
+    VaultState.setAuthKeyHex(bufferToHex(authBytes));
     
-    encryptionKey = await window.crypto.subtle.importKey(
+    const importedKey = await window.crypto.subtle.importKey(
       "raw",
       encBytes,
       { name: "AES-GCM", length: 256 },
       false,
       ["encrypt", "decrypt"]
     );
+    VaultState.setEncryptionKey(importedKey);
     
     return true;
   } catch (e) {
@@ -145,7 +162,7 @@ async function encryptPayload(payloadObj) {
   
   const ciphertext = await window.crypto.subtle.encrypt(
     { name: "AES-GCM", iv: iv },
-    encryptionKey,
+    VaultState.getEncryptionKey(),
     encoded
   );
   
@@ -164,7 +181,7 @@ async function decryptPayload(ciphertextB64, ivB64) {
     
     const decrypted = await window.crypto.subtle.decrypt(
       { name: "AES-GCM", iv: iv },
-      encryptionKey,
+      VaultState.getEncryptionKey(),
       ciphertext
     );
     
@@ -179,19 +196,27 @@ async function decryptPayload(ciphertextB64, ivB64) {
 // --- Fetch Wrapper with Auth ---
 async function fetchApi(endpoint, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
-  if (jwtToken) {
-    headers['Authorization'] = `Bearer ${jwtToken}`;
+  const token = VaultState.getJwtToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
   options.headers = { ...headers, ...options.headers };
   return fetch(`/api${endpoint}`, options);
-
 }
 
 // --- Auth Flows ---
 registerBtn.addEventListener('click', async () => {
   const user = usernameInput.value;
   const pass = masterPasswordInput.value;
-  if (!user || !pass) return showToast("Usuário e Senha são obrigatórios.", "error");
+  
+  if (!user || !pass) {
+    return showToast("Por favor, complete os campos com os dados de login e senha.", "error");
+  }
+
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+  if (!passwordRegex.test(pass)) {
+    return showToast("A senha deve ter no mínimo 8 caracteres, uma letra maiúscula, uma minúscula, um número e um símbolo.", "error");
+  }
   
   authLoader.classList.remove('hidden');
   await deriveKeys(pass, user);
@@ -199,11 +224,11 @@ registerBtn.addEventListener('click', async () => {
   try {
     const res = await fetchApi('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ username: user, auth_key: authKeyHex })
+      body: JSON.stringify({ username: user, auth_key: VaultState.getAuthKeyHex() })
     });
     const data = await res.json();
     if (res.ok) {
-      jwtToken = data.access_token;
+      VaultState.setJwtToken(data.access_token);
       showMfaSetup();
     } else {
       showToast(data.detail || "Erro ao registrar", "error");
@@ -225,7 +250,7 @@ loginBtn.addEventListener('click', async () => {
   authLoader.classList.remove('hidden');
   await deriveKeys(pass, user);
   
-  pendingLoginData = { username: user, auth_key: authKeyHex };
+  pendingLoginData = { username: user, auth_key: VaultState.getAuthKeyHex() };
   await attemptLogin(pendingLoginData);
 });
 
@@ -241,7 +266,7 @@ async function attemptLogin(payload) {
         mfaPromptSection.classList.remove('hidden');
         showToast("Insira seu código MFA.", "success");
       } else {
-        jwtToken = data.access_token;
+        VaultState.setJwtToken(data.access_token);
         enterVault();
       }
     } else {
@@ -301,10 +326,15 @@ function enterVault() {
   logoutBtn.classList.remove('hidden');
 }
 
-logoutBtn.addEventListener('click', () => {
-  jwtToken = null;
-  encryptionKey = null;
-  authKeyHex = null;
+logoutBtn.addEventListener('click', async () => {
+  // Invalida o token no backend (blocklist)
+  try {
+    await fetchApi('/auth/logout', { method: 'POST' });
+  } catch (e) {
+    console.warn('Falha ao comunicar logout ao servidor:', e);
+  }
+  // Limpa o estado local e recarrega
+  VaultState.clearAll();
   window.location.reload();
 });
 
@@ -320,23 +350,39 @@ tabBtns.forEach(btn => {
 });
 
 // --- UI Helpers ---
-function createExpandableItem(titleText, contentHtml) {
+// Recebe titleText (string) e contentEl (elemento DOM ou string de texto simples)
+function createExpandableItem(titleText, contentEl) {
   const li = document.createElement('li');
-  
+
   const header = document.createElement('div');
   header.className = 'item-header';
-  header.innerHTML = `<span>${titleText}</span> <span>+</span>`;
-  
+
+  const titleSpan = document.createElement('span');
+  titleSpan.textContent = titleText; // seguro contra XSS
+  const toggleSpan = document.createElement('span');
+  toggleSpan.textContent = '+';
+  header.appendChild(titleSpan);
+  header.appendChild(document.createTextNode(' '));
+  header.appendChild(toggleSpan);
+
   const details = document.createElement('div');
   details.className = 'item-details hidden';
-  details.innerHTML = contentHtml;
-  
+
+  if (typeof contentEl === 'string') {
+    // Texto puro (erros, notas simples)
+    const p = document.createElement('p');
+    p.textContent = contentEl;
+    details.appendChild(p);
+  } else {
+    // Elemento DOM já construído de forma segura
+    details.appendChild(contentEl);
+  }
+
   header.addEventListener('click', () => {
     details.classList.toggle('hidden');
-    const span = header.querySelectorAll('span')[1];
-    span.innerText = details.classList.contains('hidden') ? '+' : '-';
+    toggleSpan.textContent = details.classList.contains('hidden') ? '+' : '-';
   });
-  
+
   li.appendChild(header);
   li.appendChild(details);
   return li;
@@ -366,25 +412,24 @@ loadNotesBtn.addEventListener('click', async () => {
   const res = await fetchApi('/vault/notes/');
   if (!res.ok) return showToast("Erro ao buscar notas", "error");
   const notes = await res.json();
-  
-  notesList.innerHTML = "";
-  if(notes.length === 0) {
-    notesList.innerHTML = "<p>Nenhuma nota encontrada.</p>";
+
+  // Limpa lista de forma segura (sem innerHTML)
+  while (notesList.firstChild) notesList.removeChild(notesList.firstChild);
+
+  if (notes.length === 0) {
+    const p = document.createElement('p');
+    p.textContent = 'Nenhuma nota encontrada.';
+    notesList.appendChild(p);
     return;
   }
-  
+
   for (const n of notes) {
     const dec = await decryptPayload(n.ciphertext, n.iv);
-    
-    if (dec.error) {
-      const li = createExpandableItem("Erro de Descriptografia", dec.error);
-      notesList.appendChild(li);
-    } else {
-      // Fallback para notas antigas sem titulo
-      const t = dec.title || "Nota Sem Título";
-      const li = createExpandableItem(t, dec.text);
-      notesList.appendChild(li);
-    }
+    // createExpandableItem usa textContent internamente — seguro contra XSS
+    const t = dec.error ? 'Erro de Descriptografia' : (dec.title || 'Nota Sem Título');
+    const body = dec.error ? dec.error : (dec.text || '');
+    const li = createExpandableItem(t, body);
+    notesList.appendChild(li);
   }
 });
 
@@ -412,30 +457,73 @@ loadPasswordsBtn.addEventListener('click', async () => {
   const res = await fetchApi('/vault/passwords/');
   if (!res.ok) return showToast("Erro ao buscar senhas", "error");
   const pws = await res.json();
-  
-  passwordsList.innerHTML = "";
-  if(pws.length === 0) {
-    passwordsList.innerHTML = "<p>Nenhuma senha encontrada.</p>";
+
+  // Limpa lista de forma segura (sem innerHTML)
+  while (passwordsList.firstChild) passwordsList.removeChild(passwordsList.firstChild);
+
+  if (pws.length === 0) {
+    const p = document.createElement('p');
+    p.textContent = 'Nenhuma senha encontrada.';
+    passwordsList.appendChild(p);
     return;
   }
-  
+
   for (const p of pws) {
     const dec = await decryptPayload(p.ciphertext, p.iv);
-    
+
     if (dec.error) {
-      const li = createExpandableItem("Erro", dec.error);
+      const li = createExpandableItem('Erro', dec.error);
       passwordsList.appendChild(li);
     } else {
-      const id = `pwd-${Math.random().toString(36).substr(2, 9)}`;
-      const html = `
-        Usuário: <strong>${dec.user}</strong><br>
-        URL: <a href="${dec.url}" target="_blank" style="color:var(--primary-color)">${dec.url}</a><br><br>
-        Senha: <span id="${id}">${dec.pass}</span><br>
-        <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('${id}').innerText).then(()=>alert('Senha copiada!'))">Copiar Senha</button>
-      `;
-      const li = createExpandableItem(dec.title, html);
+      // Construção 100% via DOM — imune a XSS
+      const container = document.createElement('div');
+
+      const userLabel = document.createElement('p');
+      const userStrong = document.createElement('strong');
+      userStrong.textContent = dec.user || '';
+      userLabel.appendChild(document.createTextNode('Usuário: '));
+      userLabel.appendChild(userStrong);
+
+      const urlLabel = document.createElement('p');
+      if (dec.url) {
+        // Validamos a URL antes de colocar no href para evitar javascript:
+        let safeUrl = '#';
+        try {
+          const parsed = new URL(dec.url);
+          if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+            safeUrl = parsed.href;
+          }
+        } catch (_) { /* URL inválida */ }
+        const link = document.createElement('a');
+        link.textContent = dec.url;
+        link.href = safeUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.style.color = 'var(--primary-color)';
+        urlLabel.appendChild(document.createTextNode('URL: '));
+        urlLabel.appendChild(link);
+      }
+
+      const passLabel = document.createElement('p');
+      const passSpan = document.createElement('span');
+      passSpan.textContent = dec.pass || '';
+      passLabel.appendChild(document.createTextNode('Senha: '));
+      passLabel.appendChild(passSpan);
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-btn';
+      copyBtn.textContent = 'Copiar Senha';
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(dec.pass || '').then(() => showToast('Senha copiada!', 'success'));
+      });
+
+      container.appendChild(userLabel);
+      if (dec.url) container.appendChild(urlLabel);
+      container.appendChild(passLabel);
+      container.appendChild(copyBtn);
+
+      const li = createExpandableItem(dec.title || 'Sem título', container);
       passwordsList.appendChild(li);
-      document.getElementById('btn-' + id).addEventListener('click', () => { navigator.clipboard.writeText(dec.pass); showToast('Senha copiada!', 'success'); });
     }
   }
 });
@@ -454,105 +542,115 @@ uploadFileBtn.addEventListener('click', async () => {
   showToast("Criptografando arquivo localmente...", "success");
   
   const arrayBuffer = await file.arrayBuffer();
-  
+
   const ivFile = window.crypto.getRandomValues(new Uint8Array(12));
   const salt = window.crypto.getRandomValues(new Uint8Array(16));
-  
+
   const ciphertextBuf = await window.crypto.subtle.encrypt(
     { name: "AES-GCM", iv: ivFile },
-    encryptionKey,
+    VaultState.getEncryptionKey(),
     arrayBuffer
   );
-  
+
   const ivName = window.crypto.getRandomValues(new Uint8Array(12));
   const enc = new TextEncoder();
   const encFilenameBuf = await window.crypto.subtle.encrypt(
     { name: "AES-GCM", iv: ivName },
-    encryptionKey,
+    VaultState.getEncryptionKey(),
     enc.encode(file.name)
   );
-  
-  const encFilenameStr = bufferToBase64(ivName) + ":" + bufferToBase64(encFilenameBuf);
-  
+
+  const encFilenameStr = bufferToBase64(ivName) + ':' + bufferToBase64(encFilenameBuf);
+
   const formData = new FormData();
-  formData.append("file", new Blob([ciphertextBuf]), "encrypted_blob");
-  formData.append("encrypted_filename", encFilenameStr);
-  formData.append("iv", bufferToBase64(ivFile));
-  formData.append("salt", bufferToBase64(salt));
-  
+  formData.append('file', new Blob([ciphertextBuf]), 'encrypted_blob');
+  formData.append('encrypted_filename', encFilenameStr);
+  formData.append('iv', bufferToBase64(ivFile));
+  formData.append('salt', bufferToBase64(salt));
+
   const res = await fetch('/api/vault/files/upload/', {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${jwtToken}` },
+    headers: { 'Authorization': `Bearer ${VaultState.getJwtToken()}` },
     body: formData
   });
-  
+
   if (res.ok) {
-    showToast("Arquivo enviado com segurança!", "success");
-    fileInput.value = "";
+    showToast('Arquivo enviado com segurança!', 'success');
+    fileInput.value = '';
     loadFilesBtn.click();
   } else {
     const errorData = await res.json();
-    showToast(errorData.detail || "Erro ao fazer upload", "error");
+    showToast(errorData.detail || 'Erro ao fazer upload', 'error');
   }
 });
 
 loadFilesBtn.addEventListener('click', async () => {
   const res = await fetchApi('/vault/files/');
-  if (!res.ok) return showToast("Erro ao buscar arquivos", "error");
+  if (!res.ok) return showToast('Erro ao buscar arquivos', 'error');
   const files = await res.json();
-  
-  filesList.innerHTML = "";
-  if(files.length === 0) {
-    filesList.innerHTML = "<p>Nenhum arquivo encontrado.</p>";
+
+  // Limpa lista de forma segura (sem innerHTML)
+  while (filesList.firstChild) filesList.removeChild(filesList.firstChild);
+
+  if (files.length === 0) {
+    const p = document.createElement('p');
+    p.textContent = 'Nenhum arquivo encontrado.';
+    filesList.appendChild(p);
     return;
   }
-  
+
   for (const f of files) {
-    let filename = "Arquivo Desconhecido";
+    let filename = 'Arquivo Desconhecido';
     const parts = f.encrypted_filename.split(':');
     if (parts.length === 2) {
       try {
         const iv = base64ToBuffer(parts[0]);
         const cipher = base64ToBuffer(parts[1]);
         const decrypted = await window.crypto.subtle.decrypt(
-          { name: "AES-GCM", iv: iv },
-          encryptionKey,
+          { name: 'AES-GCM', iv: iv },
+          VaultState.getEncryptionKey(),
           cipher
         );
         filename = new TextDecoder().decode(decrypted);
       } catch (e) {
-        filename = "Erro ao descriptografar nome";
+        filename = 'Erro ao descriptografar nome';
       }
     }
-    
-    const id = `file-${f.file_id}`;
-    const html = `
-      <p>Salvo em: ${new Date(f.created_at).toLocaleString()}</p>
-      <button class="secondary-btn" id="${id}" style="margin-top: 10px;">Decifrar e Baixar Localmente</button>
-    `;
-    const li = createExpandableItem(filename, html);
+
+    // Constrói conteúdo via DOM — sem innerHTML
+    const container = document.createElement('div');
+    const dateP = document.createElement('p');
+    dateP.textContent = `Salvo em: ${new Date(f.created_at).toLocaleString()}`;
+    const downloadBtn = document.createElement('button');
+    downloadBtn.className = 'secondary-btn';
+    downloadBtn.textContent = 'Decifrar e Baixar Localmente';
+    downloadBtn.style.marginTop = '10px';
+    container.appendChild(dateP);
+    container.appendChild(downloadBtn);
+
+    const li = createExpandableItem(filename, container);
     filesList.appendChild(li);
-    
-    document.getElementById(id).addEventListener('click', async () => {
-      showToast("Baixando blob criptografado...", "success");
+
+    downloadBtn.addEventListener('click', async () => {
+      showToast('Baixando blob criptografado...', 'success');
       const dRes = await fetch(`/api/vault/files/download/${f.file_id}`, {
-        headers: { 'Authorization': `Bearer ${jwtToken}` }
+        headers: { 'Authorization': `Bearer ${VaultState.getJwtToken()}` }
       });
-      
-      if (!dRes.ok) return showToast("Erro no download", "error");
-      
+
+      if (!dRes.ok) return showToast('Erro no download', 'error');
+
       const encBlob = await dRes.blob();
       const encBuffer = await encBlob.arrayBuffer();
       const ivBuffer = base64ToBuffer(f.iv);
-      
+
       try {
         const decBuffer = await window.crypto.subtle.decrypt(
-          { name: "AES-GCM", iv: ivBuffer },
-          encryptionKey,
+          { name: 'AES-GCM', iv: ivBuffer },
+          VaultState.getEncryptionKey(),
           encBuffer
         );
-        
-        const decBlob = new Blob([decBuffer], { type: "application/octet-stream" });
+
+        const decBlob = new Blob([decBuffer], { type: 'application/octet-stream' });
         const url = URL.createObjectURL(decBlob);
         const a = document.createElement('a');
         a.href = url;
@@ -561,10 +659,10 @@ loadFilesBtn.addEventListener('click', async () => {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        
-        showToast("Download completo!", "success");
+
+        showToast('Download completo!', 'success');
       } catch (e) {
-        showToast("Erro ao decifrar o arquivo. Chave incorreta?", "error");
+        showToast('Erro ao decifrar o arquivo. Chave incorreta?', 'error');
       }
     });
   }
