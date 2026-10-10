@@ -16,4 +16,6 @@ jobs:
           git pull origin main
           chmod +x scripts/setup_fail2ban.sh
           ./scripts/setup_fail2ban.sh
+          sudo cp nginx/nginx.conf /etc/nginx/nginx.conf
+          sudo nginx -t && sudo systemctl reload nginx
           docker compose up -d --build
