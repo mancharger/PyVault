@@ -38,9 +38,29 @@ Para cumprir os rigorosos requisitos de segurança (Secure by Design), o código
    - **Onde encontrar:** `frontend/main.js` (Funções de derivação de chaves).
    - **Como mitiga:** Dados sensíveis são criptografados em trânsito (HTTPS obrigatório e redirecionado pelo Nginx) e em repouso. A aplicação web utiliza o algoritmo de derivação **Argon2** (via WebAssembly) e criptografia simétrica **AES-256-GCM** localmente, gerando *Zero-Knowledge Proof*. Chaves nunca transitam pela rede.
 
-3. **A07:2021-Identification and Authentication Failures (Falhas de Identificação e Autenticação):**
+3. **A03:2021-Injection (Injeção):**
+   - **Onde encontrar:** `backend/app/database.py` e interações com o banco.
+   - **Como mitiga:** A aplicação utiliza o ORM **SQLAlchemy**, que sanitiza e parametriza automaticamente todas as consultas ao banco de dados, prevenindo efetivamente ataques de SQL Injection.
+
+4. **A04:2021-Insecure Design (Design Inseguro):**
+   - **Onde encontrar:** Arquitetura geral (*Zero-Knowledge*).
+   - **Como mitiga:** O projeto foi desenhado sob o princípio de *Secure by Design*. O servidor nunca recebe chaves em texto plano, o que significa que mesmo num cenário de comprometimento do banco de dados, a confidencialidade das informações (cofres) é mantida.
+
+5. **A05:2021-Security Misconfiguration (Configuração Incorreta de Segurança):**
+   - **Onde encontrar:** `nginx/nginx.conf`.
+   - **Como mitiga:** O proxy reverso Nginx possui *hardening* rigoroso. Ele oculta sua versão (`server_tokens off`) e impõe *Security Headers* mandatórios como HSTS (`Strict-Transport-Security`), prevenção de clickjacking (`X-Frame-Options DENY`), e proteção contra MIME-sniffing (`X-Content-Type-Options nosniff`).
+
+6. **A07:2021-Identification and Authentication Failures (Falhas de Identificação e Autenticação):**
    - **Onde encontrar:** `backend/app/routes/auth.py` (MFA flow) e bloqueio de rotas.
    - **Como mitiga:** Além da derivação forte por Argon2, o sistema implementa obrigatoriamente a **Autenticação de Múltiplos Fatores (MFA / TOTP)**. O login exige a apresentação de um token MFA válido de 6 dígitos para gerar a sessão de acesso, mitigando ataques de *Credential Stuffing* e vazamentos de senhas.
+
+7. **A08:2021-Software and Data Integrity Failures (Falhas de Integridade de Software e Dados):**
+   - **Onde encontrar:** Módulo de Auditoria Forense / *Hash Chaining*.
+   - **Como mitiga:** A integridade dos logs de auditoria forense é mantida através de uma cadeia de hashes criptográficos (SHA-256). Qualquer tentativa de alterar, excluir ou forjar um registro no banco quebra a corrente de integridade, tornando a adulteração óbvia.
+
+8. **A09:2021-Security Logging and Monitoring Failures (Falhas de Registro e Monitoramento de Segurança):**
+   - **Onde encontrar:** Trilha Forense (*Audit Trail*).
+   - **Como mitiga:** A aplicação mantém uma trilha forense imutável de todos os eventos sensíveis da aplicação (logins falhos, acessos, modificações de dados), fornecendo IP, *timestamp* e ação exata para aprimorar o monitoramento, resposta a incidentes e rastreabilidade.
 
 ---
 
