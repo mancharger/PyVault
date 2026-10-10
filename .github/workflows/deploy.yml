@@ -13,7 +13,8 @@ jobs:
       - name: Atualizar código e reiniciar aplicação
         run: |
           cd ~/projeto
-          git pull origin main
+          git fetch origin
+          git reset --hard origin/main
           sed -i 's/\r$//' scripts/setup_fail2ban.sh
           sed -i 's/\r$//' scripts/fix_nginx_pqc.sh
           chmod +x scripts/setup_fail2ban.sh
