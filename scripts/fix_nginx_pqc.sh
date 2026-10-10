@@ -20,8 +20,8 @@ if ! grep -q "Strict-Transport-Security" "$CONF_FILE"; then
     sudo sed -i '/ssl_protocols/i \    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;' "$CONF_FILE"
 fi
 
-# 2. Configurar o ssl_ecdh_curve para PQC (KyberDraft00)
-PQC_CURVE="ssl_ecdh_curve X25519Kyber768Draft00:X25519:secp384r1;"
+# 2. Configurar o ssl_ecdh_curve seguro (sem Kyber pois o OpenSSL do server não suporta)
+PQC_CURVE="ssl_ecdh_curve X25519:secp384r1;"
 
 if ! grep -q "ssl_ecdh_curve" "$CONF_FILE"; then
     sudo sed -i "/ssl_protocols/i \    $PQC_CURVE" "$CONF_FILE"
