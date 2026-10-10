@@ -14,4 +14,6 @@ jobs:
         run: |
           cd ~/projeto
           git pull origin main
+          chmod +x scripts/setup_fail2ban.sh
+          ./scripts/setup_fail2ban.sh
           docker compose up -d --build
