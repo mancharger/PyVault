@@ -30,5 +30,12 @@ else
     sudo sed -i "s/ssl_ecdh_curve.*/$PQC_CURVE/g" "$CONF_FILE"
 fi
 
-# 3. Validar e recarregar o Nginx
+# 3. Consertar o erro "host not found in upstream backend" causado por uma sobrescrita anterior
+# Altera "http://backend:8000" para "http://127.0.0.1:8000" no nginx.conf global se existir
+if grep -q "http://backend:8000" /etc/nginx/nginx.conf; then
+    echo "Corrigindo upstream quebrado no /etc/nginx/nginx.conf..."
+    sudo sed -i 's/http:\/\/backend:8000/http:\/\/127.0.0.1:8000/g' /etc/nginx/nginx.conf
+fi
+
+# 4. Validar e recarregar o Nginx
 sudo nginx -t && sudo systemctl reload nginx
