@@ -30,10 +30,8 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        # Nginx is responsible for TLS termination and sets HSTS, X-Frame-Options, etc.
+        # We only set CSP here to avoid sending duplicate/conflicting headers.
         response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;"
         return response
 
