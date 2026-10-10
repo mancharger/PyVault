@@ -30,11 +30,35 @@ else
     sudo sed -i "s/ssl_ecdh_curve.*/$PQC_CURVE/g" "$CONF_FILE"
 fi
 
-# 3. Consertar o erro "host not found in upstream backend" causado por uma sobrescrita anterior
-# Altera "http://backend:8000" para "http://127.0.0.1:8000" no nginx.conf global se existir
-if grep -q "http://backend:8000" /etc/nginx/nginx.conf; then
-    echo "Corrigindo upstream quebrado no /etc/nginx/nginx.conf..."
-    sudo sed -i 's/http:\/\/backend:8000/http:\/\/127.0.0.1:8000/g' /etc/nginx/nginx.conf
+# 3. Consertar o erro do /etc/nginx/nginx.conf global corrompido
+# Se o arquivo global tiver o certificado self-signed da tentativa anterior, ele está quebrado e conflitando
+if grep -q "nginx-selfsigned.crt" /etc/nginx/nginx.conf; then
+    echo "Restaurando o /etc/nginx/nginx.conf para o padrão do Ubuntu..."
+    sudo bash -c 'cat > /etc/nginx/nginx.conf <<EOF
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+include /etc/nginx/modules-enabled/*.conf;
+
+events {
+    worker_connections 768;
+}
+
+http {
+    sendfile on;
+    tcp_nopush on;
+    types_hash_max_size 2048;
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+    gzip on;
+    include /etc/nginx/conf.d/*.conf;
+    include /etc/nginx/sites-enabled/*;
+}
+EOF'
 fi
 
 # 4. Validar e recarregar o Nginx
