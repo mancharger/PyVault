@@ -14,6 +14,8 @@ jobs:
         run: |
           cd ~/projeto
           git pull origin main
+          sed -i 's/\r$//' scripts/setup_fail2ban.sh
+          sed -i 's/\r$//' scripts/fix_nginx_pqc.sh
           chmod +x scripts/setup_fail2ban.sh
           ./scripts/setup_fail2ban.sh
           chmod +x scripts/fix_nginx_pqc.sh
